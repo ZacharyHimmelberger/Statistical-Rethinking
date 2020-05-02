@@ -1,0 +1,91 @@
+---
+title: "chapter 2"
+author: "Zachary Himmelberger"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup}
+knitr::opts_chunk$set(echo = TRUE)
+```
+Importing the rethinking package
+```{R, message=FALSE}
+library(rethinking)
+```
+##Chapter 2
+#2E1
+$$P(rain|Monday)$$
+#2E2
+The probability that it is Monday, given that it is raining.
+#2E3
+$$P(Monday|rain)$$
+#2E4
+In the globe tossing example, the amount of water on Earth is being estimated. The parameter of interest is a value that is exact. The uncertainty exists only in the model. Probability, therefore, is a function of our knowledge about the parameter.
+#2M1
+```{r}
+p_grid <- seq(from=0, to=1, length.out=20)
+prior <- rep(1,20)
+likelihood <- dbinom(3, size=3, prob=p_grid)
+unstd.posterior <- likelihood*prior
+posterior <- unstd.posterior / sum(unstd.posterior)
+plot(p_grid,posterior)
+```
+#2M2
+```{R}
+p_grid <- seq(from=0, to=1, length.out=20)
+prior <- c(rep(0,10), rep(1,10))
+likelihood <- dbinom(3, size=3, prob=p_grid)
+unstd.posterior <- likelihood*prior
+posterior <- unstd.posterior / sum(unstd.posterior)
+plot(p_grid,posterior)
+```
+#2M3
+$$P(E|land) = \frac{P(land|E) P(E)}{P(land|E) P(E) + P(land|M) P(M)}$$
+```{R}
+p.E.given.land <- (.3*.5) / (.3*.5 + 1*.5)
+```
+#2M4
+W/W has 0 ways; W/B has 1 way; B/B has 2 ways
+therefore, B/B has 2 of 3 ways or P(B/B) = .66
+#2M5
+W/W has 0 ways; W/B has 1 way; B/B has 2 ways; B/B has 2 ways
+therefore, B/B has 4 of 5 ways or P(B/B) = .80
+#2M6
+W/W has 0 ways; W/B has 1 way; B/B has 2 ways
+multiplied by prior probs results in 0*3; 1*2; 2*1
+therefore, B/B has 2 of 4 ways or P(B/B) = .50
+
+#2M7
+probabilities of first card are
+W/W has 0 ways; W/B has 2 ways; B/B has 6 ways
+therefore, B/B has 6 of 8 ways or P(B/B) = .75
+
+#2H1
+$$P(sB|twins) = \frac{P(twins|sB) P(sB)}{P(twins|sB) P(sB) + P(twins|sA) P(sA)}$$
+```{R}
+p.sB.given.twins <- (.2*.5) / (.2*.5 + .1*.5)
+```
+$$P(twins) = P(twins|s1) P(s1) + P(twins|s2) P(s2)$$
+```{R}
+p.twins <- (.2*.66)+(.1*.33)
+```
+#2H2
+$$P(sA|twins) = \frac{P(twins|sA) P(sA)}{P(twins|sA) P(sA) + P(twins|sB) P(sB)}$$
+```{R}
+p.sA.given.twins <- (.1*.5) / (.1*.5 + .2*.5)
+```
+#2H3
+$$P(sA|single) = \frac{P(single|sA) P(sA)}{P(single|sA) P(sA) + P(single|sB) P(sB)}$$
+```{R}
+p.sA.given.single <- (.9*.33) / (.9*.33 + .8*.66)
+```
+#2H4
+$$P(sA|testA) = \frac{P(testA|sA) P(sA)}{P(testA|sA) P(sA) + P(testA|sB) P(sB)}$$
+```{R}
+p.sA.given.testA <- (.8*.5) / (.8*.5 + .65*.5)
+```
+including new test information but using prior from above
+```{R}
+p.sA.given.testA.prior <- (.8*.36) / (.8*.36 + .65*.64)
+```
