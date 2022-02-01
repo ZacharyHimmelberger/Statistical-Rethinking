@@ -1,0 +1,184 @@
+---
+title: "Chapter 2"
+author: "Zachary Himmelberger"
+date: "12/14/2021"
+output: html_document
+---
+
+# Import Packages
+
+```{r, message=FALSE}
+library(rethinking)
+```
+
+# Practice Problems
+
+## 2M1
+
+### 1
+
+```{r}
+# define grid
+p_grid <- seq(from=0, to=1, length.out=20)
+
+# define prior
+prior <- rep(1, 20)
+
+# compute likelihood at each value in grid
+likelihood <- dbinom(3, size = 3, prob = p_grid)
+
+# compute product of likelihood and prior
+unstd.posterior <- likelihood * prior
+
+# standardize the posterior, so it sums to 1
+posterior <- unstd.posterior / sum(unstd.posterior)
+
+# plot the results
+plot(p_grid, posterior, type = "b",
+     xlab = "prob of water", ylab = "posterior prob")
+```
+
+### 2
+
+```{r}
+# define grid
+p_grid <- seq(from=0, to=1, length.out=20)
+
+# define prior
+prior <- rep(1, 20)
+
+# compute likelihood at each value in grid
+likelihood <- dbinom(3, size = 4, prob = p_grid)
+
+# compute product of likelihood and prior
+unstd.posterior <- likelihood * prior
+
+# standardize the posterior, so it sums to 1
+posterior <- unstd.posterior / sum(unstd.posterior)
+
+# plot the results
+plot(p_grid, posterior, type = "b",
+     xlab = "prob of water", ylab = "posterior prob")
+```
+
+### 1
+
+```{r}
+# define grid
+p_grid <- seq(from=0, to=1, length.out=20)
+
+# define prior
+prior <- rep(1, 20)
+
+# compute likelihood at each value in grid
+likelihood <- dbinom(5, size = 7, prob = p_grid)
+
+# compute product of likelihood and prior
+unstd.posterior <- likelihood * prior
+
+# standardize the posterior, so it sums to 1
+posterior <- unstd.posterior / sum(unstd.posterior)
+
+# plot the results
+plot(p_grid, posterior, type = "b",
+     xlab = "prob of water", ylab = "posterior prob")
+```
+
+## 2M2.
+
+### 1
+
+```{r}
+# define grid
+p_grid <- seq(from=0, to=1, length.out=20)
+
+# define prior
+prior <- ifelse(p_grid > .5, 1, 0)
+
+# compute likelihood at each value in grid
+likelihood <- dbinom(3, size = 3, prob = p_grid)
+
+# compute product of likelihood and prior
+unstd.posterior <- likelihood * prior
+
+# standardize the posterior, so it sums to 1
+posterior <- unstd.posterior / sum(unstd.posterior)
+
+# plot the results
+plot(p_grid, posterior, type = "b",
+     xlab = "prob of water", ylab = "posterior prob")
+```
+
+## 2H1
+
+First we calculate the probability of species A given twins and species B given twins.
+
+\begin{align}
+P(t | A) &= .1 \\
+P(t | B) &= .2 \\
+P(A | t) &= \frac{P(t | A) P(A)}{P(t)} \\
+&= \frac{P(t | A) P(A)}{P(t | A) P(A) + P(t | B) P(B)} \\
+&= \frac{.1 \times .5}{.1 \times .5 + .2 \times .5} \\
+&= \frac{.05}{.15} \\
+&= .33
+\end{align}
+
+Thus, $P(B | t) = .66$. Then, the probability of the next birth being twins is equal to
+
+\begin{align}
+P(t) &= P(A | t) P(A) + P(B | t) P(B) \\
+&= .33 \times .1 + .66 \times .2 \\
+&\approx .165
+\end{align}
+
+## 2H2
+
+\begin{align}
+P(t | A) &= .1 \\
+P(t | B) &= .2 \\
+P(A | t) &= \frac{P(t | A) P(A)}{P(t)} \\
+&= \frac{P(t | A) P(A)}{P(t | A) P(A) + P(t | B) P(B)} \\
+&= \frac{.1 \times .5}{.1 \times .5 + .2 \times .5} \\
+&= \frac{.05}{.15} \\
+&= .33
+\end{align}
+
+## 2H3
+
+\begin{align}
+P(A | t, s) &= \frac{P(t, s | A) P(A)}{P(t, s)} \\
+&= \frac{.9 \times .33}{.9 \times .33 + .8 \times .66} \\
+&\approx \frac{.33}{.858} \\
+&\approx .385
+
+\end{align}
+
+## 2H4
+
+First, we can determine the probability of species A given a positive test for species A and the probability of species B given a negative test for species B. Note that this makes additional assumptions about the test, but are supported by the answers given by McElreath.
+
+\begin{align}
+P(test A | A) &= .8 \\
+P(test A | B) &= 1 - .65 \\
+&= .35
+\end{align}
+
+\begin{align}
+P(A | test A) &= \frac{P(test A | A) P(A)}{P(test A)} \\
+&= \frac{.8 \times .5}{.8 \times .5 + .35 \times .5} \\
+&= \frac{.4}{.575} \\
+&= .70
+\end{align}
+
+Now plugging in the information about births, we can use an updated prior. 
+
+\begin{align}
+P(A | test A) &= \frac{P(test A | A) P(A)}{P(test A)} \\
+&= \frac{.8 \times .36}{.8 \times .36 + .35 \times .64} \\
+&\approx \frac{.288}{.512} \\
+&\approx .563
+\end{align}
+
+Show a video and tell people it is a deep fake. Measure how it affects them.
+
+Show prosthetic limb v. no limb and see if it affects

@@ -1,0 +1,301 @@
+---
+title: "chapter 3"
+author: "Zachary Himmelberger"
+date: "1/2/2022"
+output: html_document
+---
+---
+title: "Chapter 3"
+author: "Zachary Himmelberger"
+date: "12/14/2021"
+output: html_document
+---
+
+# Import Packages
+
+```{r, message=FALSE}
+library(tidyverse)
+library(rethinking)
+```
+
+# Practice Problems
+
+## E
+
+We are given the following code.
+
+```{r}
+p_grid <- seq( from=0 , to=1 , length.out=1000 )
+prior <- rep( 1 , 1000 )
+likelihood <- dbinom( 6 , size=9 , prob=p_grid )
+posterior <- likelihood * prior
+posterior <- posterior / sum(posterior)
+set.seed(100)
+samples <- sample( p_grid , prob=posterior , size=1e4 , replace=TRUE )
+```
+
+## 3E1
+
+```{r}
+options(scipen = 100) # show digits instead of scientific notation
+sum(samples < .2) / length(samples)
+```
+
+Thus, 0.04% of the posterior probability lies below p = .2. 
+
+## 3E2
+
+```{r}
+sum(samples > .8) / length(samples)
+```
+
+Thus, 11.16% of the posterior probability lies above p = .8. 
+
+## 3E3
+
+```{r}
+sum(samples > .2 & samples < .8) / length(samples)
+```
+
+Thus, 88.8% of the posterior probability lies between p = .2 and p = .8. 
+
+## 3E4
+
+```{r}
+quantile(samples, .2)
+```
+
+Thus, 20% of the posterior probability lies below p = .519.
+
+## 3E5
+
+```{r}
+quantile(samples, .8)
+```
+
+Thus, 20% of the posterior probability lies above p = .756.
+
+## 3E6
+
+```{r}
+HPDI(samples, .66)
+```
+
+Thus, the narrowest 66% of the posterior probability lies between p = .509 and p = .774.
+
+## 3E7
+
+```{r}
+PI(samples, .66)
+```
+
+Thus, 66% of the posterior probability, assuming equal proportions above and below the interval, lies between p = .503 and p = .770.
+
+## 3M1
+
+```{r}
+p_grid <- seq( from=0 , to=1 , length.out=1000 )
+prior <- rep( 1 , 1000 )
+likelihood <- dbinom( 8 , size=15 , prob=p_grid )
+posterior <- likelihood * prior
+posterior <- posterior / sum(posterior)
+```
+
+## 3M2
+
+```{r}
+set.seed(100)
+samples <- sample( p_grid , prob=posterior , size=1e4 , replace=TRUE )
+HPDI(samples, prob = .9)
+```
+
+## 3M3
+
+```{r}
+ppw <- rbinom( 1e4 , size=15 , prob=samples )
+sum(ppw == 8) / length(ppw)
+```
+
+The probability of obtaining 8 waters in 15 tosses is .15.
+
+## 3M4
+
+```{r}
+sum(ppw == 6) / length(ppw)
+```
+
+The probability of obtaining 6 waters in nine tosses is .116.
+
+## 3M5
+
+```{r}
+p_grid <- seq( from=0 , to=1 , length.out=1000 )
+prior <- ifelse(p_grid < .5, 0, 1)
+likelihood <- dbinom( 8 , size=15 , prob=p_grid )
+posterior <- likelihood * prior
+posterior <- posterior / sum(posterior)
+```
+
+```{r}
+# repeat M2 - M4
+
+# M2
+samples <- sample( p_grid , prob=posterior , size=1e4 , replace=TRUE )
+HPDI(samples, prob = .9)
+
+# M3
+ppw <- rbinom( 1e4 , size=15 , prob=samples )
+sum(ppw == 8) / length(ppw)
+
+# M4
+sum(ppw == 6) / length(ppw)
+```
+
+We can see that assigning 0 probability to a value below p = .5 narrows the highest probability density interval. Specifically, the high end of the range is close to before, but the lower end is drastically changed.
+
+## 3M6
+
+We can take an empirical approach to solving this problem. Specifically, we can simulate intervals assuming that the true value of p = .7.
+
+```{r}
+# create fun that generates HPDI of 99%
+  # takes tosses as argument
+  # something with R binom
+  # this assumes a known true proportion of water
+generate_HPDI <- function(tosses, true_prop_water){
+  p_grid <- seq( from=0 , to=1 , length.out=1000 )
+  prior <- rep(1, 1000)
+  likelihood <- dbinom( rbinom(1, tosses, true_prop_water) , size=tosses , prob=p_grid )
+  posterior <- likelihood * prior
+  posterior <- posterior / sum(posterior)
+  samples <- sample(p_grid, prob=posterior, size=10000, replace=TRUE)
+  lower_bound <- HPDI(samples, prob=.99)[1]
+  upper_bound <- HPDI(samples, prob=.99)[2]
+  difference <- upper_bound - lower_bound
+  
+  return(difference)
+}
+```
+
+```{r}
+# run fun 1000 times at set number of tosses, take mean distance
+generate_samples <- function(tosses, samples = 1000){
+  values <- vector("numeric", length = samples)
+  for(i in 1:samples){
+    values[i] <- generate_HPDI(tosses = tosses, true_prop_water = .7)
+  }
+  
+  return(values)
+}
+```
+
+```{r}
+num_tosses <- seq(10, 2500, by=25)
+mean_values <- c()
+for(i in num_tosses){
+  values <- generate_samples(tosses = i, samples = 10)
+  y <- mean(values)
+  mean_values <- c(mean_values, y)
+}
+```
+
+```{r}
+ggplot(data = NULL, aes(x = num_tosses, y = mean_values)) +
+  geom_line() +
+  geom_hline(yintercept = .05, color = "red") +
+  scale_x_continuous(name = "Number Tosses", breaks = seq(0, 2500, by = 250)) + 
+  scale_y_continuous(name = "Avg. 99% CI", limits = c(0, .4), breaks = seq(0, .4, by = .05))
+```
+
+## H
+
+```{r}
+birth1 <- c(1,0,0,0,1,1,0,1,0,1,0,0,1,1,0,1,1,0,0,0,1,0,0,0,1,0,
+0,0,0,1,1,1,0,1,0,1,1,1,0,1,0,1,1,0,1,0,0,1,1,0,1,0,0,0,0,0,0,0,
+1,1,0,1,0,0,1,0,0,0,1,0,0,1,1,1,1,0,1,0,1,1,1,1,1,0,0,1,0,1,1,0,
+1,0,1,1,1,0,1,1,1,1)
+
+birth2 <- c(0,1,0,1,0,1,1,1,0,0,1,1,1,1,1,0,0,1,1,1,0,0,1,1,1,0,
+1,1,1,0,1,1,1,0,1,0,0,1,1,1,1,0,0,1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,
+1,1,1,0,1,1,0,1,1,0,1,1,1,0,0,0,0,0,0,1,0,0,0,1,1,0,0,1,0,0,1,1,
+0,0,0,1,1,1,0,0,0,0)
+
+births <- c(birth1, birth2)
+```
+
+## 3H1
+
+```{r}
+p_grid <- seq(from =  0, to =  1, length.out = 1000)
+prior <- rep(1, 1000)
+likelihood <- dbinom(sum(births),  size = length(births),  prob = p_grid)
+posterior <- likelihood*prior
+posterior <- posterior/sum(posterior)
+```
+
+```{r}
+plot(posterior ~ p_grid)
+p_grid[which(posterior==max(posterior))]
+
+# we can also solve this empirically
+samples <- sample(p_grid,  prob = posterior,  size = 1e4,  replace = TRUE)
+mean(samples)
+```
+
+## 3H2
+
+```{r}
+HPDI(samples, prob = c(.5, .89, .97))
+```
+
+## 3H3
+
+```{r}
+pred_samples <- rbinom(10000, size = 200, prob = samples)
+dens(pred_samples)
+abline( v=sum(births) , col="red" )
+simplehist(pred_samples)
+```
+
+We can see that 111 is a reasonable outcome from the model. 
+
+## 3H4
+
+```{r}
+pred_samples <- rbinom(10000, size = 100, prob = samples)
+dens(pred_samples)
+abline( v=sum(birth1) , col="red" )
+simplehist(pred_samples)
+```
+
+We can also run this in `ggplot`, which looks cleaner.
+
+```{r}
+ggplot(data=NULL, aes(x = pred_samples)) +
+  geom_histogram(bins = 100) +
+  geom_vline(xintercept = sum(birth1), color = "red")
+```
+
+The model looks fine still: `r sum(birth1)` first-born males are still reasonable according to our model.
+
+## 3H5
+
+```{r}
+# create a births data.frame
+birth_df <- data.frame(birth_1 = birth1, birth_2 = birth2)
+
+# filter so we only have girls as first born
+girl_first_df <- birth_df %>%
+  filter(birth_1 == 0)
+
+# simulate 10000 samples
+f1_pred_samples <- rbinom(10000, size = nrow(girl_first_df), prob = samples)
+
+# plot results
+ggplot(data=NULL, aes(x = f1_pred_samples)) +
+  geom_histogram(bins = 100) +
+  geom_vline(xintercept = sum(girl_first_df$birth_2), color = "red")
+```
+
+The model does not expect this many boys to occur when the first born is female. This suggests that the two births might not be independent. Alternatively, we may just have a biased sample.
+
