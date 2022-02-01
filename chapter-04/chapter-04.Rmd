@@ -1,0 +1,736 @@
+---
+title: "chapter 4"
+author: "Zachary Himmelberger"
+date: "1/2/2022"
+output: html_document
+---
+---
+title: "Chapter 4"
+author: "Zachary Himmelberger"
+date: "12/14/2021"
+output: html_document
+---
+
+# Import Packages
+
+```{r, message=FALSE}
+library(splines)
+library(tidyverse)
+library(rethinking)
+```
+
+# Practice Problems
+
+## 4E1
+
+The likelihood is $y_i \sim \text{Normal}(\mu, \sigma)$.
+
+## 4E2
+
+Two parameters: $\mu$ and $\sigma$. 
+
+## 4E3
+
+See below.
+
+## 4E4
+
+The linear model is $\mu_i = \alpha + \beta x_i$.
+
+## 4E5
+
+There are three parameters: $\sigma$, $\alpha$, and $\beta$.
+
+## 4M1
+
+```{r}
+sim_mu_prior <- rnorm(10000, mean = 0, sd = 10)
+sim_sigma_prior <- rexp(10000, rate = 1)
+sim_data_prior <- rnorm(10000, mean = sim_mu_prior, sd = sim_sigma_prior)
+
+ggplot(data = NULL, aes(x = sim_data_prior)) +
+  geom_histogram(alpha = .8)
+```
+
+## 4M2
+
+```{r}
+f_list <- alist(
+  y ~ dnorm(mu, sigma),
+  mu ~ dnorm(0, 10),
+  sigma ~ dexp(1)
+)
+```
+
+## 4M3
+
+$$
+\begin{align}
+  y_i &\sim \text{Normal}(\mu, \sigma) \\
+  \mu_i &= \alpha + \beta x_i \\
+  \alpha &\sim \text{Normal}(0, 10) \\
+  \beta &\sim \text{Normal}(0, 1) \\
+  \sigma &\sim \text{Exponential}(1)
+\end{align}
+$$
+
+## 4M4
+
+$$
+\begin{align}
+  h_i &\sim \text{Normal}(\mu, \sigma) \\
+  \mu_i &= \alpha + \beta (x_i - \bar{x}) \\
+  \alpha &\sim \text{Normal}(145, 15) \\
+  \beta &\sim \text{Log-Normal}(0, 1) \\
+  \sigma &\sim \text{Exponential}(1)
+\end{align}
+$$
+
+## 4M5
+
+No, it does not change our priors because we already accounted for each student getting taller over the years. Below is the prior we used on beta. 
+
+```{r}
+ggplot(data = NULL, aes(x = rlnorm(10000, meanlog = 0, sdlog = 1))) +
+  geom_histogram(bins = 100) +
+  scale_x_continuous(limits = c(-10, 20))
+```
+
+## 4M6
+
+The prior we used is below. 
+
+```{r}
+sim_sigma_prior <- rexp(10000, rate = 1)
+sim_var_prior <- sim_sigma_prior**2
+
+ggplot(data = NULL, aes(x = sim_var_prior)) +
+  geom_histogram(bins = 100) +
+  scale_x_continuous(limits = c(-5, 20))
+```
+
+We can calculate the number of values over 64. 
+
+```{r} 
+options(scipen = 999)
+length(sim_var_prior[sim_var_prior > 64]) / length(sim_var_prior)
+```
+
+Thus, we had essentially no prior values over 64, so our prior is fine. 
+
+## 4M7
+
+We will fit both models. 
+
+```{r}
+data("Howell1")
+d <- Howell1
+d2 <- d[d$age >= 18, ]
+xbar <- mean(d2$weight)
+
+original_m4.3 <- quap(
+  alist(
+    height ~ dnorm(mu, sigma),
+    mu <- a + b * (weight - xbar),
+    a ~ dnorm(178, 20),
+    b ~ dlnorm(0, 1),
+    sigma ~ dunif(0, 50)
+  ),
+  data = d2
+)
+
+new_m4.3 <- quap(
+  alist(
+    height ~ dnorm(mu, sigma),
+    mu <- a + b * (weight),
+    a ~ dnorm(178, 20),
+    b ~ dlnorm(0, 1),
+    sigma ~ dunif(0, 50)
+  ),
+  data = d2
+)
+```
+
+Now we will look at the covariance among the parameters. 
+
+```{r}
+print("original")
+round(vcov(original_m4.3), 3)
+print("new")
+round(vcov(new_m4.3), 3)
+print("correlation original")
+round(cov2cor(vcov(original_m4.3)), 3)
+print("correlation new")
+round(cov2cor(vcov(new_m4.3)), 3)
+```
+
+There are two important changes. First, the variance of alpha changes. Second, the covariance between alpha and beta changes. Specifically, the relationship becomes a strong negative correlation where it was zero.
+
+We can examine the posterior predictions of both models. 
+
+```{r}
+precis(original_m4.3)
+```
+
+```{r}
+precis(new_m4.3)
+```
+
+We can see that the intercept changes. However, this is now meaningless: we don't care what the mean height is for someone who has a weight of zero. This is an example of the model giving us a good answer to a bad question.
+
+## 4M8
+
+We will load in the data. 
+
+```{r}
+data(cherry_blossoms)
+d <- cherry_blossoms[complete.cases(cherry_blossoms$doy), ]
+precis(d)
+
+ggplot(data = d, aes(x = year, y = doy)) +
+  geom_line()
+```
+
+Now we can re-create the original analysis.
+
+```{r}
+# set knots
+num_knots <- 15
+knot_list <- quantile(d$year, probs = seq(0, 1, length.out = num_knots))
+
+# basis function
+B <- bs(d$year,
+   knots = knot_list[-c(1, num_knots)],
+   degree = 3,
+   intercept = TRUE)
+
+# build model
+m4.7 <- quap(
+    alist(
+        D ~ dnorm(mu , sigma),
+        mu <- a + B %*% w,
+        a ~ dnorm(100, 10),
+        w ~ dnorm(0, 10),
+        sigma ~ dexp(1)
+    ),
+    data=list(D = d$doy, B = B ) ,
+    start=list(w = rep( 0, ncol(B))))
+
+# extract samples
+post <- extract.samples(m4.7)
+mu <- link(m4.7)
+mu_PI = apply(mu, 2, PI, 0.97)
+
+plot(d$year, d$doy, col = col.alpha(rangi2, 0.3), pch = 16)
+shade(mu_PI, d$year, col = col.alpha("black", 0.5))
+```
+
+We will try to double the number of knots. 
+
+```{r}
+# set knots
+num_knots <- 30
+knot_list <- quantile(d$year, probs = seq(0, 1, length.out = num_knots))
+
+# basis function
+B <- bs(d$year,
+   knots = knot_list[-c(1, num_knots)],
+   degree = 3,
+   intercept = TRUE)
+
+# build model
+mod_30_knots <- quap(
+    alist(
+        D ~ dnorm(mu , sigma),
+        mu <- a + B %*% w,
+        a ~ dnorm(100, 10),
+        w ~ dnorm(0, 10),
+        sigma ~ dexp(1)
+    ),
+    data=list(D = d$doy, B = B ) ,
+    start=list(w = rep( 0, ncol(B))))
+
+# extract samples
+post <- extract.samples(mod_30_knots)
+mu <- link(mod_30_knots)
+mu_PI = apply(mu, 2, PI, 0.97)
+
+plot(d$year, d$doy, col = col.alpha(rangi2,0.3), pch=16)
+shade(mu_PI, d$year, col = col.alpha("black",0.5))
+```
+
+We can see that increasing the number of knots caused our predictions to become "wigglier." This is because we are having each prediction based more on local data.
+
+We will now adjust the prior on the weights. 
+
+```{r}
+# set knots
+num_knots <- 15
+knot_list <- quantile(d$year, probs = seq(0, 1, length.out = num_knots))
+
+# basis function
+B <- bs(d$year,
+   knots = knot_list[-c(1, num_knots)],
+   degree = 3,
+   intercept = TRUE)
+
+# build model
+new_prior_model <- quap(
+    alist(
+        D ~ dnorm(mu , sigma),
+        mu <- a + B %*% w,
+        a ~ dnorm(100, 10),
+        w ~ dnorm(0, 1),
+        sigma ~ dexp(1)
+    ),
+    data=list(D = d$doy, B = B ) ,
+    start=list(w = rep( 0, ncol(B))))
+
+# extract samples
+post <- extract.samples(new_prior_model)
+mu <- link(new_prior_model)
+mu_PI = apply(mu, 2, PI, 0.97)
+
+plot(d$year, d$doy, col = col.alpha(rangi2,0.3), pch=16)
+shade(mu_PI, d$year, col = col.alpha("black",0.5))
+```
+
+Creating a more narrow standard deviation of the prior on w has the result of flattening our prediction line. 
+
+## 4H1
+
+```{r}
+# load data
+d <- Howell1[Howell1$age >= 18, ]
+xbar <- mean(d$weight)
+
+# build model
+height_model <- quap(
+    alist(
+      height ~ dnorm(mu , sigma) , 
+      mu <- a + b * (weight - xbar), 
+      a ~ dnorm(178, 20),
+      b ~ dlnorm(0 , 1),
+      sigma ~ dunif(0, 50)
+      ), 
+    data=d)
+
+# extract samples
+post <- extract.samples(height_model)
+
+# calculate predict heights based on the model
+weight.seq <- c(46.95, 43.72, 64.78, 32.59, 54.63)
+mu <- link(height_model, data = data.frame(weight = weight.seq))
+
+# summarize the results
+mu.mean <- apply(mu, 2, mean)
+mu.PI <- apply(mu, 2, PI, prob = 0.89)
+print(data.frame(weight.seq, mu.mean, CI.05 = mu.PI[1, ], CI.94 = mu.PI[2, ]))
+```
+
+## 4H2
+
+### (a)
+
+```{r}
+# load data
+d <- Howell1[Howell1$age < 18, ]
+xbar <- mean(d$weight)
+
+# build model
+height_model <- quap(
+    alist(
+      height ~ dnorm(mu , sigma) , 
+      mu <- a + b * (weight - xbar), 
+      a ~ dnorm(110, 20),
+      b ~ dlnorm(0, 1),
+      sigma ~ dunif(0, 50)
+      ), 
+    data=d)
+
+# summarize findings
+precis(height_model)
+```
+
+For each kg, we expect the child to be 2.72 cm taller. So, for every 10 kg, we would predict the child will be 27.2 cm taller. 
+
+### (b)
+
+```{r}
+# extract samples
+post <- extract.samples(height_model)
+
+# calculate predict heights based on the model
+weight.seq <- seq(4, 44, by = 1)
+mu <- link(height_model, data = data.frame(weight = weight.seq))
+
+# summarize the results
+mu.mean <- apply(mu, 2, mean)
+mu.PI <- apply(mu, 2, PI, prob = 0.89)
+
+ggplot(data = NULL) +
+  geom_point(aes(x = d$weight, y = d$height)) +
+  geom_line(aes(x = weight.seq, y = mu.mean)) +
+  geom_ribbon(aes(x = weight.seq, y = mu.mean, ymin=mu.PI[1, ], ymax=mu.PI[2, ]), alpha=0.2)
+```
+
+### (c)
+
+This model fit is concerning because the MAP predicted values are linear, but the relationship between weight and height is curvilinear. Thus, our line does a poor job of capturing the values at the low and high range of weight.
+
+## 4H3
+
+```{r}
+# load data
+d <- Howell1
+xbar <- mean(d$weight)
+
+# build model
+height_model <- quap(
+    alist(
+      height ~ dnorm(mu , sigma) , 
+      mu <- a + b * log((weight)), 
+      a ~ dnorm(178, 20),
+      b ~ dlnorm(0, 1),
+      sigma ~ dunif(0, 50)
+      ), 
+    data=d)
+
+# summarize findings
+precis(height_model)
+```
+
+We can interpret the model as predicting a height increase of about 47 cm for each log-weight increase in weight. This is difficult to interpret without a graph.
+
+```{r}
+# extract samples
+post <- extract.samples(height_model)
+
+# calculate predict heights based on the model
+weight.seq <- seq(1, 65, by = 1)
+mu <- link(height_model, data = data.frame(weight = weight.seq))
+
+# summarize the results
+mu.mean <- apply(mu, 2, mean)
+mu.PI <- apply(mu, 2, PI, prob = 0.97)
+
+ggplot(data = NULL) +
+  geom_point(aes(x = d$weight, y = d$height), alpha = .3) +
+  geom_line(aes(x = weight.seq, y = mu.mean), color = "blue", size = 1.4) +
+  geom_ribbon(aes(x = weight.seq, y = mu.mean, ymin=mu.PI[1, ], ymax=mu.PI[2, ]), alpha=.2, color = "red")
+```
+
+Note that our uncertainty is less than McElreath's because we did not propagate the uncertainty. 
+
+## 4H4
+
+```{r}
+d$weight_s <- ( d$weight - mean(d$weight) )/sd(d$weight)
+d$weight_s2 <- d$weight_s^2
+m4.5 <- quap(
+    alist(
+        height ~ dnorm( mu , sigma ) ,
+        mu <- a + b1*weight_s + b2*weight_s2 ,
+        a ~ dnorm( 178 , 20 ) ,
+        b1 ~ dlnorm( 0 , 1 ) ,
+        b2 ~ dnorm( 0 , 1 ) ,
+        sigma ~ dunif( 0 , 50 )
+) , data=d )
+```
+
+We can visualize the original prior.
+
+```{r}
+# extract prior
+m4.5.prior <- extract.prior(m4.5)
+weight_s.seq <- seq(from = min(d$weight_s), to = max(d$weight_s))
+weight_s2.seq <- weight_s.seq ^ 2
+
+mu <- link(m4.5, post = m4.5.prior, 
+           data = list(weight_s = weight_s.seq,
+                       weight_s2 = weight_s2.seq))
+
+plot(NULL, xlim = range(weight_s.seq), ylim = c(55, 270),
+xlab = "weight(std)", ylab = "height")
+for(i in 1:50) lines(weight_s.seq, mu[i, ], col = col.alpha("black", 0.5))
+```
+
+Now we can make our own prior that better represents the possible relationship between height and weight. 
+
+```{r}
+d$weight_s <- ( d$weight - mean(d$weight) )/sd(d$weight)
+d$weight_s2 <- d$weight_s^2
+m4.5 <- quap(
+    alist(
+        height ~ dnorm( mu , sigma ) ,
+        mu <- a + b1*weight_s + b2*weight_s2 ,
+        a ~ dnorm( 178 , 30 ) ,
+        b1 ~ dlnorm( 0 , 2 ) ,
+        b2 ~ dnorm( 0 , 3 ) ,
+        sigma ~ dunif( 0 , 50 )
+) , data=d )
+
+# extract prior
+m4.5.prior <- extract.prior(m4.5)
+weight_s.seq <- seq(from = min(d$weight_s), to = max(d$weight_s))
+weight_s2.seq <- weight_s.seq ^ 2
+
+mu <- link(m4.5, post = m4.5.prior, 
+           data = list(weight_s = weight_s.seq,
+                       weight_s2 = weight_s2.seq))
+
+plot(NULL, xlim = range(weight_s.seq), ylim = c(55, 270),
+xlab = "weight(std)", ylab = "height")
+for(i in 1:50) lines(weight_s.seq, mu[i, ], col = col.alpha("black", 0.5))
+```
+
+## 4H5
+
+We will start by visualizing the relationship and plotting a spline.
+
+```{r}
+data("cherry_blossoms")
+d <- cherry_blossoms[complete.cases(cherry_blossoms$doy,
+                                    cherry_blossoms$temp), ]
+
+ggplot(data = d, aes(x = temp, y = doy)) +
+  geom_point(alpha = .2) +
+  geom_smooth()
+```
+
+We can immediately notice that a linear regression line would do a reasonable job predicting day of year from temperature.
+
+Now we can re-create the original analysis.
+
+```{r}
+# set knots
+num_knots <- 15
+knot_list <- quantile(d$year, probs = seq(0, 1, length.out = num_knots))
+
+# basis function
+B <- bs(d$year,
+   knots = knot_list[-c(1, num_knots)],
+   degree = 3,
+   intercept = TRUE)
+
+# build original model
+m4.7 <- quap(
+    alist(
+        D ~ dnorm(mu , sigma),
+        mu <- a + B %*% w,
+        a ~ dnorm(100, 10),
+        w ~ dnorm(0, 10),
+        sigma ~ dexp(1)
+    ),
+    data=list(D = d$doy, B = B ) ,
+    start=list(w = rep( 0, ncol(B))))
+```
+
+Now we can extract and visualize the priors.
+
+```{r}
+m4.7.prior <- extract.prior(m4.7)
+mu <- link(m4.7, post = m4.7.prior)
+mu_mean <- apply(mu, 2, mean)
+mu_PI <- apply(mu, 2, PI, 0.97)
+
+plot(x = d$year, 
+     y = d$doy, 
+     xlim = range(d$year), 
+     col = rgb(red = 1, 
+               green =  0,
+               blue = 1,
+               alpha = .2)) 
+
+for (i in 1:10){
+  lines(d$year, mu[i, ])
+  }
+```
+
+
+# extract samples
+post <- extract.samples(m4.7)
+mu <- link(m4.7)
+mu_PI = apply(mu, 2, PI, 0.97)
+
+plot(d$year, d$doy, col = col.alpha(rangi2, 0.3), pch = 16)
+shade(mu_PI, d$year, col = col.alpha("black", 0.5))
+
+Many of the splines don't look reasonable. We can adjust the priors on the weights to see how things change. 
+
+```{r}
+# set knots
+num_knots <- 15
+knot_list <- quantile(d$year, probs = seq(0, 1, length.out = num_knots))
+
+# basis function
+B <- bs(d$year,
+   knots = knot_list[-c(1, num_knots)],
+   degree = 3,
+   intercept = TRUE)
+
+# build original model
+m4.7 <- quap(
+    alist(
+        D ~ dnorm(mu , sigma),
+        mu <- a + B %*% w,
+        a ~ dnorm(100, 10),
+        w ~ dnorm(0, 50),
+        sigma ~ dexp(1)
+    ),
+    data=list(D = d$doy, B = B ) ,
+    start=list(w = rep( 0, ncol(B))))
+
+m4.7.prior <- extract.prior(m4.7)
+mu <- link(m4.7, post = m4.7.prior)
+mu_mean <- apply(mu, 2, mean)
+mu_PI <- apply(mu, 2, PI, 0.97)
+
+plot(x = d$year, 
+     y = d$doy, 
+     xlim = range(d$year), 
+     col = rgb(red = 1, 
+               green =  0,
+               blue = 1,
+               alpha = .2)) 
+
+for (i in 1:10){
+  lines(d$year, mu[i, ])
+  }
+```
+
+So moving the standard deviation of the weights to 50 caused them to dramatic in their curvature. Let's try the to lower the standard deviation next. 
+
+```{r}
+# set knots
+num_knots <- 15
+knot_list <- quantile(d$year, probs = seq(0, 1, length.out = num_knots))
+
+# basis function
+B <- bs(d$year,
+   knots = knot_list[-c(1, num_knots)],
+   degree = 3,
+   intercept = TRUE)
+
+# build original model
+m4.7 <- quap(
+    alist(
+        D ~ dnorm(mu , sigma),
+        mu <- a + B %*% w,
+        a ~ dnorm(100, 10),
+        w ~ dnorm(0, 1),
+        sigma ~ dexp(1)
+    ),
+    data=list(D = d$doy, B = B ) ,
+    start=list(w = rep( 0, ncol(B))))
+
+m4.7.prior <- extract.prior(m4.7)
+mu <- link(m4.7, post = m4.7.prior)
+mu_mean <- apply(mu, 2, mean)
+mu_PI <- apply(mu, 2, PI, 0.97)
+
+plot(x = d$year, 
+     y = d$doy, 
+     xlim = range(d$year), 
+     col = rgb(red = 1, 
+               green =  0,
+               blue = 1,
+               alpha = .2)) 
+
+for (i in 1:10){
+  lines(d$year, mu[i, ])
+  }
+```
+
+Lowering the standard deviation resulted in curves that respond less to deviations in the data. 
+
+```{r}
+# set knots
+num_knots <- 15
+knot_list <- quantile(d$year, probs = seq(0, 1, length.out = num_knots))
+
+# basis function
+B <- bs(d$year,
+   knots = knot_list[-c(1, num_knots)],
+   degree = 3,
+   intercept = TRUE)
+
+# build original model
+m4.7 <- quap(
+    alist(
+        D ~ dnorm(mu , sigma),
+        mu <- a + B %*% w,
+        a ~ dnorm(100, 10),
+        w ~ dnorm(10, 1),
+        sigma ~ dexp(1)
+    ),
+    data=list(D = d$doy, B = B ) ,
+    start=list(w = rep( 0, ncol(B))))
+
+m4.7.prior <- extract.prior(m4.7)
+mu <- link(m4.7, post = m4.7.prior)
+mu_mean <- apply(mu, 2, mean)
+mu_PI <- apply(mu, 2, PI, 0.97)
+
+plot(x = d$year, 
+     y = d$doy, 
+     xlim = range(d$year), 
+     col = rgb(red = 1, 
+               green =  0,
+               blue = 1,
+               alpha = .2)) 
+
+for (i in 1:10){
+  lines(d$year, mu[i, ])
+  }
+```
+
+Increasing the mean on the prior caused the lines to get closer to the mean. 
+
+## 4H8
+
+**Note: There is a misprint in the text. There is no 4H7.**
+
+```{r}
+# set knots
+num_knots <- 15
+knot_list <- quantile(d$year, probs = seq(0, 1, length.out = num_knots))
+
+# basis function
+B <- bs(d$year,
+   knots = knot_list[-c(1, num_knots)],
+   degree = 3,
+   intercept = TRUE)
+
+# build original model
+m4.7 <- quap(
+    alist(
+        D ~ dnorm(mu , sigma),
+        mu <- B %*% w,
+        w ~ dnorm(mean(d$doy), 1),
+        sigma ~ dexp(1)
+    ),
+    data=list(D = d$doy, B = B ) ,
+    start=list(w = rep( 0, ncol(B))))
+
+m4.7.prior <- extract.prior(m4.7)
+mu <- link(m4.7, post = m4.7.prior)
+mu_mean <- apply(mu, 2, mean)
+mu_PI <- apply(mu, 2, PI, 0.97)
+
+plot(x = d$year, 
+     y = d$doy, 
+     xlim = range(d$year), 
+     col = rgb(red = 1, 
+               green =  0,
+               blue = 1,
+               alpha = .2)) 
+
+for (i in 1:10){
+  lines(d$year, mu[i, ])
+  }
+```
+
+After trying a bunch of solutions, it feels like we can re-create the analysis by modifying the mean of the weights to what the intercept would have been. This is showing us that the weights are able to substitute for the intercept, though I'm not sure if this is practically useful. 
+
+In fact, this analysis should not be equal to the analysis with the intercept because the latter has more uncertainty in the model (i.e., we are estimating more parameters). 
