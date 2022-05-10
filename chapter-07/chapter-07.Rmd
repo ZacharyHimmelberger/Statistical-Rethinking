@@ -1,0 +1,427 @@
+---
+title: "Chapter 7"
+author: "Zachary Himmelberger"
+date: "4/6/2022"
+output: html_document
+---
+
+# Import Packages
+
+```{r, message=FALSE}
+library(tidyverse)
+library(rethinking)
+```
+
+# Practice Problems
+
+## 7E1
+
+1. The measure of uncertainty should be continuous because a small change in uncertainty should lead to a correspondingly small change in our measure of uncertainty. 
+
+2. The measure of uncertainty should scale with the number of events in the sample space. It is easy to conflate variables and events here. More variables do not necessarily lead to more uncertainty, but more events in a sample space do. 
+
+3. The measure of uncertainty should be additive, so more possible combinations should lead to higher (or equal) uncertainty. In other words, uncertainty should not decrease with more possible events.
+
+## 7E2
+
+$$
+\begin{align}
+H(p) &= -\mathbb{E} \log_2(p_i) = -\sum_{i=1}^n p_i \log_2(p_i) \\
+H(p) &= -(P(H) * \log_2(P(H)) + P(T) * \log_2(P(T))) \\
+H(p) &= -(.7 * \log_2(.7) + .3 * \log_2(.3)) \\
+H(p) &= 0.6109
+\end{align}
+$$
+In R, we can do the same calculation.
+
+```{r}
+-(.7 * \log2(.7) + .3 * \log2(.3))
+```
+
+## 7E3
+
+$$
+\begin{align}
+H(p) &= -\mathbb{E} \log_2(p_i) = -\sum_{i=1}^n p_i \log_2(p_i) \\
+H(p) &= -(P(1) * \log_2(P(1)) + P(2) * \log_2(P(2)) \\
+           &+ P(3) * \log_2(P(3)) + P(4) * \log_2(P(4))) \\
+H(p) &= -(.2 * \log_2(.2) + .25 * \log_2(.25)) \\
+        &+ .25 * \log_2(.25) + .30 * \log_2(.30) \\
+H(p) &= 1.3762
+\end{align}
+$$
+
+```{r}
+-(.2 * log2(.2) + .25 * log2(.25) + .25 * log2(.25) + .30 * log2(.30))
+```
+
+Just for pedagogical reasons, we can show the maximal amount of uncertainty is achieved with equal probabilities for each outcome. 
+
+```{r}
+-(.1 * log2(.1) + .25 * log2(.25) + .25 * log2(.25) + .4 * log2(.4))
+```
+
+## 7E4
+
+$$
+\begin{align}
+H(p) &= -\mathbb{E} \log_2(p_i) = -\sum_{i=1}^n p_i \log_2(p_i) \\
+H(p) &= -(P(1) * \log_2(P(1)) + P(2) * \log_2(P(2)) \\
+           &+ P(3) * \log_2(P(3))) \\
+H(p) &= -(.33 * \log_2(.33) + .33 * \log_2(.33)) \\
+        &+ .33 * \log_2(.33) \\
+H(p) &= 1.0976
+\end{align}
+$$
+
+```{r}
+-(.33 * log2(.33) + .33 * log2(.33) + .33 * log2(.33))
+```
+
+## 7M1
+
+**AIC:** an estimate of the expected KL-divergence, which accounts for the number of parameters
+
+**WAIC:** an estimate of the expected KL-divergence, which accounts for the number of parameters, but does not make assumptions about the posterior distribution and converges to the cross-validation estimate in a large sample
+
+The WAIC is most general, as it has fewer assumptions. Specifically, AIC assumes that the priors are flat or overwhelmed by the likelihood, the posterior distribution is approximately multivariate normal, and the sample size is much greater than the number of parameters.  
+
+## 7M2
+
+We can use estimated divergence to compare different models. Although we cannot measure quality of the model absolutely, we can get a relative measure of model quality. In model selection, we choose the best model according to estimated divergence. In model comparison, we try to learn why some models do better or worse than others. Model comparison is preferred.
+
+## 7M3
+
+Models have to be fit to the same observations because the posterior distribution is a function of the data. 
+
+## 7M4
+
+I don't know, so let's simulate it!
+
+```{R}
+data(WaffleDivorce)
+
+d <- WaffleDivorce
+d$A <- standardize(d$MedianAgeMarriage)
+d$D <- standardize(d$Divorce)
+d$M <- standardize(d$Marriage)
+```
+
+```{r}
+m_flat_prior <- quap(
+  alist(
+    D ~ dnorm(mu, sigma),
+    mu <- a + bA * A,
+    a ~ dnorm(0, 0.2),
+    bA ~ dnorm(0, 2),
+    sigma ~ dexp(1)
+  ), data = d
+)
+
+m_concentrated_prior <- quap(
+  alist(
+    D ~ dnorm(mu, sigma),
+    mu <- a + bA * A,
+    a ~ dnorm(0, 0.2),
+    bA ~ dnorm(0, 0.1),
+    sigma ~ dexp(1)
+  ), data = d
+)
+```
+
+```{r}
+compare(m_flat_prior, m_concentrated_prior)
+```
+
+We can see that the more concentrated prior has a smaller number of effective parameters. This is likely because the concentrated prior creates a less flexible model. In other words, the model does not "listen" to the data. 
+
+## 7M5
+
+The parameter being estimated gets proportionately less information from the data when we use a more informative prior. 
+
+## 7M6
+
+Overly informative priors effectively occulude the data in favor of the prior. 
+
+## 7H1
+
+```{r}
+data(Laffer)
+Laffer$tax_rate_std <- standardize(Laffer$tax_rate)
+
+tax_model <- quap(
+  alist(
+    tax_revenue ~ dnorm(mu, sigma),
+    mu <- a + b * tax_rate_std,
+    a ~ dnorm(0, 5),
+    b ~ dnorm(0, 5),
+    sigma ~ dexp(.1)
+  ), data = Laffer
+)
+```
+
+```{r}
+precis(tax_model)
+```
+
+```{r}
+ggplot(data = Laffer) +
+  geom_point(mapping = aes(x = tax_rate_std, 
+                           y = tax_revenue)) +
+  geom_abline(intercept = precis(tax_model)[[1]][1],
+              slope = precis(tax_model)[[1]][2])
+```
+
+```{r}
+tax_model_2 <- quap(
+  alist(
+    tax_revenue ~ dnorm(mu, sigma),
+    mu <- a + b * tax_rate_std + b_2 * tax_rate_std^2,
+    a ~ dnorm(0, 5),
+    b ~ dnorm(0, 5),
+    b_2 ~ dnorm(0, 5),
+    sigma ~ dexp(.1)
+  ), data = Laffer
+)
+
+precis(tax_model_2)
+```
+
+Now we can compare models.
+
+```{r}
+compare(tax_model, tax_model_2)
+```
+
+We can see that there is little difference in predictive accuracy between the models. This indicates that there is little to no curve in the relationship between tax rate and tax revenue. 
+
+## 7H2
+
+In the Laffer data, there is one country with a high tax revenue that is an outlier. Use PSIS and WAIC to measure the importance of this outlier in the models you fit in the previous problem. Then use robust regression with a Student’s t distribution to revisit the curve fitting problem. How much does a curved relationship depend upon the outlier point?
+
+First we want to see how excluding the data point affects the regression lines. We did this as a frequentist model for convenience. 
+
+```{r}
+ggplot() +
+  geom_smooth(data = Laffer, 
+              mapping = aes(x = tax_rate, 
+                            y = tax_revenue),
+              method = "lm",
+              formula = y ~ x + I(x^2),
+              color = "black") +
+  geom_smooth(data = filter(Laffer, tax_revenue < 10), 
+              mapping = aes(x = tax_rate, 
+                            y = tax_revenue),
+              method = "lm",
+              formula = y ~ x + I(x^2), 
+              color = "red")
+```
+
+Now we can use PSIS to investigate the influence of the outlier. 
+
+```{r}
+PSIS(tax_model, pointwise = TRUE)
+```
+
+For the outlying point, we can see a Pareto k value that is extremely large (k = 2.3). This indicates that the point is having a disproportionately large influence on our model. 
+
+Now we will run a robust regression.
+
+```{r}
+tax_model_robust <- quap(
+  alist(
+    tax_revenue ~ dstudent(2, mu, sigma),
+    mu <- a + b * tax_rate_std,
+    a ~ dnorm(0, 5),
+    b ~ dnorm(0, 5),
+    sigma ~ dexp(.1)
+  ), data = Laffer
+)
+```
+
+```{r}
+precis(tax_model_robust)
+```
+
+We can see from the output that our estimates are much smaller when we use a model that is less "surprised" by outliers. 
+
+```{r}
+ggplot(data = Laffer) +
+  geom_point(mapping = aes(x = tax_rate_std, 
+                           y = tax_revenue)) +
+  geom_abline(intercept = precis(tax_model)[[1]][1],
+              slope = precis(tax_model)[[1]][2], color = "red") +
+  geom_abline(intercept = precis(tax_model_robust)[[1]][1],
+              slope = precis(tax_model_robust)[[1]][2], color = "black")
+```
+
+```{r}
+compare(tax_model, tax_model_2, tax_model_robust)
+```
+
+Comparing models, we can see that the robust model has the best out-of-sample predictive accuracy. 
+
+# 7H3
+
+The entropy for the islands is found using: 
+
+$$
+H(p) = -\mathbb{E} \log_2(p_i) = -\sum_{i=1}^n p_i \log_2(p_i).
+$$
+
+```{r}
+island_one <- c(.2, .2, .2, .2, .2)
+island_one_ent <- -sum(island_one * log2(island_one))
+
+island_two <- c(.80, .10, .05, .025, .025)
+island_two_ent <- -sum(island_two * log2(island_two))
+
+island_three <- c(.05, .15, .70, .05, .05)
+island_three_ent <- -sum(island_three * log2(island_three))
+
+print(island_one_ent)
+print(island_two_ent)
+print(island_three_ent)
+```
+
+Now we can calculate the KL divergence using:
+
+$$
+\begin{align}
+D_{KL} (p, q) &= H(p, q) - H(p) \\
+  &= - \Sigma^n_{i = 1} p_i (\log_2 (q_i) - \log_2 (p_i))
+\end{align}
+$$
+This is the added entropy when using q to predict p.
+
+```{r}
+kl_diverge <- function(p, q) {
+  print(-sum(p*(log2(q) - log2(p))))
+}
+
+kl_diverge(island_one, island_two)
+kl_diverge(island_one, island_three)
+kl_diverge(island_two, island_one)
+kl_diverge(island_two, island_three)
+kl_diverge(island_three, island_one)
+kl_diverge(island_three, island_two)
+```
+
+We can see from the KL-divergence that island one predicting island three results in the smallest increase in entropy, indicating that it is the best predictor. 
+
+# 7H4
+
+```{r}
+d <- sim_happiness( seed=1977 , N_years=1000 )
+precis(d)
+
+d2 <- d[ d$age>17 , ] 
+d2$A <- ( d2$age - 18 ) / ( 65 - 18 )
+
+d2$mid <- d2$married + 1
+m6.9 <- quap(
+    alist(
+        happiness ~ dnorm( mu , sigma ),
+        mu <- a[mid] + bA*A,
+        a[mid] ~ dnorm( 0 , 1 ),
+        bA ~ dnorm( 0 , 2 ),
+        sigma ~ dexp(1)
+    ) , data=d2 )
+precis(m6.9,depth=2)
+
+m6.10 <- quap(
+    alist(
+        happiness ~ dnorm( mu , sigma ),
+        mu <- a + bA*A,
+        a ~ dnorm( 0 , 1 ),
+        bA ~ dnorm( 0 , 2 ),
+        sigma ~ dexp(1)
+    ) , data=d2 )
+precis(m6.10)
+```
+
+```{r}
+compare(m6.9, m6.10)
+```
+
+We can see when comparing models that model 6.9 is expected to make better out-of-sample predictions. However, model 6.10 will provide the correct causal inference about the influence of age on happiness. They disagree because they have different goals. The WAIC is about prediction, whereas the decision to use model 6.10 was about causal inference. These do not necessarily align. 
+
+## 7H5
+
+```{r}
+data(foxes)
+foxes$avgfood_c <- foxes$avgfood - mean(foxes$avgfood)
+foxes$groupsize_c <- foxes$groupsize - mean(foxes$groupsize)
+foxes$area_c <- foxes$area - mean(foxes$area)
+
+m1 <- 
+  quap(
+    alist(
+      weight ~ dnorm(mu, sigma),
+      mu <- a + b_avgfood_c * avgfood_c + b_groupsize_c * groupsize_c + b_area_c * area_c,
+      a ~ dnorm(0, 5),
+      b_avgfood_c ~ dnorm(0, 5), 
+      b_groupsize_c ~ dnorm(0, 5), 
+      b_area_c ~ dnorm(0, 5), 
+      sigma ~ dlnorm(0, 2)
+    ),
+    data = foxes
+)
+
+m2 <- 
+  quap(
+    alist(
+      weight ~ dnorm(mu, sigma),
+      mu <- a + b_avgfood_c * avgfood_c + b_groupsize_c * groupsize_c,
+      a ~ dnorm(0, 5),
+      b_avgfood_c ~ dnorm(0, 5), 
+      b_groupsize_c ~ dnorm(0, 5), 
+      sigma ~ dlnorm(0, 2)
+    ),
+    data = foxes
+)
+
+m3 <- 
+  quap(
+    alist(
+      weight ~ dnorm(mu, sigma),
+      mu <- a + b_groupsize_c * groupsize_c + b_area_c * area_c,
+      a ~ dnorm(0, 5),
+      b_groupsize_c ~ dnorm(0, 5), 
+      b_area_c ~ dnorm(0, 5), 
+      sigma ~ dlnorm(0, 2)
+    ),
+    data = foxes
+)
+
+m4 <- 
+  quap(
+    alist(
+      weight ~ dnorm(mu, sigma),
+      mu <- a + b_avgfood_c * avgfood_c,
+      a ~ dnorm(0, 5),
+      b_avgfood_c ~ dnorm(0, 5), 
+      sigma ~ dlnorm(0, 2)
+    ),
+    data = foxes
+)
+
+m5 <- 
+  quap(
+    alist(
+      weight ~ dnorm(mu, sigma),
+      mu <- a + b_area_c * area_c,
+      a ~ dnorm(0, 5),
+      b_area_c ~ dnorm(0, 5), 
+      sigma ~ dlnorm(0, 2)
+    ),
+    data = foxes
+)
+```
+
+```{r}
+compare(m1, m2, m3, m4, m5)
+```
+
+We can see that models one, two, and three have very small differences in expected out-of-sample predictive power. Models four and five are also differ by only a small amount. When we look the standard error of the difference in WAIC, we see that all differences are about 1 standard error or less. This indicates that we should be careful to not exclude a model for having substantially lower predictive power, as they are all reasonably close, especially the first three models. Thus, we should use the model with the most compelling causal model.
+

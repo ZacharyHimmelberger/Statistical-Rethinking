@@ -1,0 +1,134 @@
+---
+title: "chapter 5"
+author: "Zachary Himmelberger"
+date: "1/2/2022"
+output: html_document
+---
+
+# Import Packages
+
+```{r, message=FALSE}
+library(tidyverse)
+library(rethinking)
+```
+
+# Practice Problems
+
+## 5E1
+
+Only two and four are multiple linear regressions. One and three only have one beta coefficient. 
+
+## 5E2
+
+$$
+\begin{align}
+A_i &\sim \text{Normal}(\mu_i, \sigma) \\
+\mu_i &= \alpha + \beta_L L_i + \beta_P P_i
+\end{align}
+$$
+
+## 5E3
+
+Neither amount of funding nor size of laboratory is by itself a good predictor of time to PhD degree; but together these variables are both positively associated with time to degree. Write down the model definition and 
+
+Y = time to phd
+X1 = funding
+X2 = size of lab
+
+$$
+\begin{align}
+T_i &\sim \text{Normal}(\mu_i, \sigma) \\
+\mu_i &= \alpha + \beta_F F_i + \beta_S S_i
+\end{align}
+$$
+
+Because both funding and lab size are part of our model, we can say that the slopes are positive. 
+
+## 5E4
+
+Models one, three, four, and five are inferentially equivalent. They all have four parameters. Model two has a redundant parameter. 
+
+## 5M1
+
+There is a spurious relationship between ice cream sales and shark attacks. They are correlated. However, once you condition on temperature, the correlation goes away. This is because both ice cream sales and shark attacks are causally related to temperature.
+
+## 5M2
+
+For fine dining customers, you may observe a positive relationship between income and health and a negative relationship between alcohol consumption and health. However, income and alcohol consumption are correlated. 
+
+## 5M3
+
+A higher divorce rate may cause people to not get married because they fear getting divorced. 
+
+ How might a high divorce rate cause a higher marriage rate? Can you think of a way to evaluate this relationship, using multiple regression?
+
+## 5M4
+
+I am not going to go find the data. However, I can speculate about the results. I anticipate that states that have high religiosity will have a higher divorce rate. However, this is largely because high religiosity is associated with lower average age of marriage. This is true despite the fact that individuals in the LDS community probably themselves have a lower divorce rate. This stresses the need for a causal model.
+
+## 5M5
+
+The first mechanism can be understood by regressing exercise on daily driving and daily walking. This is complicated by the fact that many people get their exercise at gyms. Weather is also a relevant confound. We would expect a very weak association. 
+
+The second mechanism can be understood by regressing daily calorie intake on eating out habits and gas prices. We would expect a very weak association. 
+
+## 5H1
+
+M and D should be conditionally independent given A.
+
+## 5H2
+
+Load in the data.
+
+```{r}
+data("WaffleDivorce")
+
+d <- data.frame(
+  A = standardize(WaffleDivorce$MedianAgeMarriage),
+  D = standardize(WaffleDivorce$Divorce),
+  M = standardize(WaffleDivorce$Marriage)
+  )
+```
+
+Fit the regression model.
+
+```{r}
+my_model <- quap(
+  alist(
+  # D <- A
+    D ~ dnorm(mu, sigma),
+    mu <- a + bA * A,
+    a ~ dnorm(0, .2),
+    bA ~ dnorm(0, .5),
+    sigma ~ dexp(1),
+  # A <- M
+    A ~ dnorm(mu_A, sigma_A),
+    mu_A <- aA + bM * M,
+    aA ~ dnorm(0, .2),
+    bM ~ dnorm(0, .5),
+    sigma_A ~ dexp(1) 
+  ), data = d
+)
+```
+
+Now we can simulate counterfactual data.
+
+```{r}
+# choose value of M that is half of the original value (in standardized units)
+M_halved_std <- ((mean(WaffleDivorce$Marriage) / 2) - mean(WaffleDivorce$Marriage)) / sd(WaffleDivorce$Marriage)
+
+# create DataFrame
+sim_dat <- data.frame(M = c(0, M_halved_std))
+
+# simulate A, then simulate D
+my_sims <- sim(my_model, data = sim_dat, vars = c("A", "D"))
+
+# calculate the average difference
+mean(my_sims$D[, 2] - my_sims$D[, 1])
+```
+
+
+
+
+
+
