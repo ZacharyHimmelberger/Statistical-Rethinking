@@ -4,12 +4,6 @@ author: "Zachary Himmelberger"
 date: "1/2/2022"
 output: html_document
 ---
----
-title: "Chapter 4"
-author: "Zachary Himmelberger"
-date: "12/14/2021"
-output: html_document
----
 
 # Import Packages
 

@@ -1,0 +1,242 @@
+---
+title: "chapter 6"
+author: "Zachary Himmelberger"
+date: "3/1/2022"
+output: html_document
+---
+
+# Import Packages
+
+```{r, message=FALSE}
+library(tidyverse)
+library(rethinking)
+```
+
+# Practice Problems
+
+## 6E1
+
+1. colliders can produce spurious correlations
+
+2. multicolinearity can produce misleading cofficient estimates
+
+3. post-treatment bias can make an important variable seem unimportant
+
+## 6E2
+
+We are examining a potential relationship between uncanniness and locus of control. It is possible that neuroticism is a fork that causes the other two variables. Because it is fork, we have to condition on neuroticism to close the back door path. 
+
+## 6E3
+
+1. The Fork: X is conditionally independent of Y, conditioned on Z.
+
+2. The Pipe: X is conditionally independent of Y, conditioned on Z.
+
+3. The Collider: X and Y are conditionally independent. Conditioning on Z would create a spurious relationship between X and Y.
+
+4. The Descendant: X and Y are conditionally independent. Conditioning on D would create a spurious relationship between X and Y.
+
+## 6E4
+
+Using a biased sample is equivalent to conditioning on Z. It create a spurious relationship between X and Y. 
+
+## 6M1
+
+![DAG](/Users/zach.himmelberger/Documents/Statistical-Rethinking/chapter-06/dagitty-model-2.jpg){#id .class width=50% height=50%}
+
+Paths:
+
+1. X <- U <- A -> C <- V -> Y (closed)
+
+2. X <- U <- A -> C -> Y
+
+3. X <- U -> B <- C <- V -> Y (closed)
+
+4. X <- U -> B <- C -> Y (closed)
+
+We must condition on A to close the second back-door path. 
+
+## 6M2
+
+First we need to correlate data from the DAG X -> Z -> Y.
+
+```{r}
+N <- 200
+x_to_z <- 1
+z_to_y <- .25
+
+X <- rnorm(n = N)
+Z <- rnorm(n = N, mean = x_to_z * X)
+Y <- rnorm(n = N, mean = z_to_y * Z)
+
+d <- data.frame(X, Y, Z)
+```
+
+Now we can regress X and Z on Y.
+
+```{r}
+m1 <- quap(
+  alist(
+    Y ~ dnorm(mu, sigma),
+    mu <- a + b_XY * X + b_ZY * Z,
+    a ~ dnorm(0, 1),
+    c(b_XY, b_ZY) ~ dnorm(0, 1),
+    sigma ~ dexp(1)
+  ),
+  data = d
+)
+```
+
+```{r}
+precis(m1)
+```
+
+Yes, we observe multicolinearity. What is happening is that understanding X does not teach us anything about Y because we have Z in the model. This is similar to the legs example but not as strong of a correlation. However, we have the same effect.
+
+## 6M3
+
+1. We need to condition on Z.
+
+2. We do not need to condition on anything. 
+
+3. We do not need to condition on anything. 
+
+4. We need to condition on A.
+
+## 6H1
+
+```{r}
+data("WaffleDivorce")
+```
+
+We will use the following DAG.
+
+![DAG](/Users/zach.himmelberger/Documents/Statistical-Rethinking/chapter-06/dagitty-model-3.jpg){#id .class width=50% height=50%}
+
+We can condition on the state being in the South. This will remove all of the spurious correlation between waffle houses and divorce rate. 
+
+## 6H2
+
+We have several conditional independencies. We will test one of them. For simplicity, we will use a frequentist test. Being a southern state should be conditionally indpendent from population.
+
+```{r}
+t.test(Divorce ~ South, data = WaffleDivorce, var.equal = TRUE)
+```
+
+The significant *t*-test indicates that our causal model is wrong. We should revise it accordingly. 
+
+![DAG](/Users/zach.himmelberger/Documents/Statistical-Rethinking/chapter-06/dagitty-model-4.jpg){#id .class width=50% height=50%}
+
+## 6H3
+
+```{r}
+data(foxes)
+
+foxes$area_c <- foxes$area - mean(foxes$area)
+
+mod <- 
+  quap(
+    alist(
+      weight ~ dnorm(mu, sigma),
+      mu <- a + b_area_c * area_c,
+      a ~ dlnorm(5, 4),
+      b_area_c ~ dnorm(.25, .75), 
+      sigma ~ dlnorm(0, 1)
+    ),
+    data = foxes
+)
+```
+
+```{r}
+precis(mod)
+```
+
+## 6H4
+
+We can infer that increasing the average food in an area will increase weight. However, we don't know how much of the effect is direct and how much is mediated by group size. Adding food should increase the group size, but increasing the group size may reduce the weight of each individual fox. To estimate the total causal effect of average food on weight, we need to adjust for area.
+
+## 6H5
+
+We can infer that increasing group size decreases the weight. To estimate the total causal effect of average food on weight, we need to adjust for average food.
+
+## 6H6
+
+![DAG](/Users/zach.himmelberger/Documents/Statistical-Rethinking/chapter-06/dagitty-model-5.jpg){#id .class width=50% height=50%}
+
+This graph implies that quantity and attitude are conditionally independent given knowledge and quality. The graph also implies that quality and knowledge are conditionally independent given quantity. 
+
+The graph is limited because we do not allow feedback loops. Reality is obviously more complex. However, a reasonable colleague would support the DAG as a good approximation. In terms of unobserved variables, there are many that can effect all of our variables. To name one, having a family member with a disability can impact attitude, quantity, and quality. 
+
+## 6H7
+
+
+```{r}
+N <- 200
+ql_to_qt <- .5
+ql_to_at <- .5
+qt_to_kn <- .5
+kn_to_at <- .5
+
+ql <- rnorm(n = N)
+qt <- rnorm(n = N, mean = ql_to_qt * ql)
+kn <- rnorm(n = N, mean = qt_to_kn * qt)
+at <- rnorm(n = N, mean = ql_to_at * ql + kn_to_at * kn)
+
+d <- data.frame(ql, qt, kn, at)
+```
+
+We will test the causal effect of quantity on attitudes. 
+
+```{r}
+m1 <- quap(
+  alist(
+    at ~ dnorm(mu, sigma),
+    mu <- a + b_ql * ql + b_qt * qt,
+    a ~ dnorm(0, 1),
+    c(b_ql, b_qt) ~ dnorm(0, 1),
+    sigma ~ dexp(1)
+  ),
+  data = d
+)
+```
+
+```{r}
+precis(m1)
+```
+
+We will also test the causal effect of knowledge on attitudes. This was set to .5, so we should be able to recover that value, but only if we condition on quantity or quality 
+
+```{r}
+no_control <- quap(
+  alist(
+    at ~ dnorm(mu, sigma),
+    mu <- a + b_kn * kn,
+    a ~ dnorm(0, 1),
+    b_kn ~ dnorm(0, 1),
+    sigma ~ dexp(1)
+  ),
+  data = d
+)
+
+control <- quap(
+  alist(
+    at ~ dnorm(mu, sigma),
+    mu <- a + b_kn * kn + b_qt * qt,
+    a ~ dnorm(0, 1),
+    c(b_kn, b_qt) ~ dnorm(0, 1),
+    sigma ~ dexp(1)
+  ),
+  data = d
+)
+```
+
+```{r}
+precis(no_control)
+```
+
+```{r}
+precis(control)
+```
+
+This approach verifies the importance of starting with a causal model!
+
